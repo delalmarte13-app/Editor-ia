@@ -1,6 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import {
+  InsertUser, users,
+  projects, InsertProject, Project,
+  documentVersions, InsertDocumentVersion, DocumentVersion,
+  agentAnalyses, InsertAgentAnalysis, AgentAnalysis,
+  documentExports, InsertDocumentExport, DocumentExport,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +95,101 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ===== PROJECTS =====
+export async function createProject(data: InsertProject): Promise<Project> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(projects).values(data);
+  const result = await db.select().from(projects)
+    .where(and(eq(projects.userId, data.userId), eq(projects.title, data.title)))
+    .orderBy(desc(projects.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function getProjectsByUser(userId: number): Promise<Project[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projects)
+    .where(eq(projects.userId, userId))
+    .orderBy(desc(projects.updatedAt));
+}
+
+export async function getProjectById(id: number, userId: number): Promise<Project | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(projects)
+    .where(and(eq(projects.id, id), eq(projects.userId, userId))).limit(1);
+  return result[0];
+}
+
+export async function updateProjectStatus(id: number, userId: number, status: Project["status"]): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(projects).set({ status }).where(and(eq(projects.id, id), eq(projects.userId, userId)));
+}
+
+// ===== DOCUMENT VERSIONS =====
+export async function saveDocumentVersion(data: InsertDocumentVersion): Promise<DocumentVersion> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(documentVersions).values(data);
+  const result = await db.select().from(documentVersions)
+    .where(eq(documentVersions.projectId, data.projectId))
+    .orderBy(desc(documentVersions.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function getLatestVersion(projectId: number): Promise<DocumentVersion | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documentVersions)
+    .where(eq(documentVersions.projectId, projectId))
+    .orderBy(desc(documentVersions.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function listVersions(projectId: number, limit = 20): Promise<DocumentVersion[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentVersions)
+    .where(eq(documentVersions.projectId, projectId))
+    .orderBy(desc(documentVersions.createdAt)).limit(limit);
+}
+
+// ===== AGENT ANALYSES =====
+export async function saveAnalysis(data: InsertAgentAnalysis): Promise<AgentAnalysis> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(agentAnalyses).values(data);
+  const result = await db.select().from(agentAnalyses)
+    .where(eq(agentAnalyses.projectId, data.projectId))
+    .orderBy(desc(agentAnalyses.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function listAnalyses(projectId: number, limit = 30): Promise<AgentAnalysis[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(agentAnalyses)
+    .where(eq(agentAnalyses.projectId, projectId))
+    .orderBy(desc(agentAnalyses.createdAt)).limit(limit);
+}
+
+// ===== DOCUMENT EXPORTS =====
+export async function saveExport(data: InsertDocumentExport): Promise<DocumentExport> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(documentExports).values(data);
+  const result = await db.select().from(documentExports)
+    .where(eq(documentExports.projectId, data.projectId))
+    .orderBy(desc(documentExports.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function listExports(projectId: number): Promise<DocumentExport[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentExports)
+    .where(eq(documentExports.projectId, projectId))
+    .orderBy(desc(documentExports.createdAt));
+}
