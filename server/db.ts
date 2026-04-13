@@ -1,17 +1,83 @@
-import { eq, desc, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import {
-  InsertUser, users,
-  projects, InsertProject, Project,
-  documentVersions, InsertDocumentVersion, DocumentVersion,
-  agentAnalyses, InsertAgentAnalysis, AgentAnalysis,
-  documentExports, InsertDocumentExport, DocumentExport,
-} from "../drizzle/schema";
-import { ENV } from './_core/env';
+import { 
+  mysqlTable, 
+  int, 
+  varchar, 
+  text, 
+  timestamp, 
+  mysqlEnum 
+} from "drizzle-orm/mysql-core";
+import { eq, and, desc } from "drizzle-orm";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+// Tabla de usuarios
+export const users = mysqlTable("users", {
+  id: int("id").autoincrement().primaryKey(),
+  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  name: text("name"),
+  email: varchar("email", { length: 320 }),
+  loginMethod: varchar("loginMethod", { length: 64 }),
+  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+});
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+// Tabla de proyectos
+export const projects = mysqlTable("projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 512 }).notNull(),
+  genre: varchar("genre", { length: 128 }),
+  description: text("description"),
+  status: mysqlEnum("status", ["draft", "in_review", "completed", "archived"])
+    .default("draft")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// Tabla de versiones de documentos
+export const documentVersions = mysqlTable("document_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  content: text("content").notNull(),
+  wordCount: int("wordCount").default(0),
+  charCount: int("charCount").default(0),
+  versionLabel: varchar("versionLabel", { length: 128 }),
+  isAutosave: boolean("isAutosave").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+// Tabla de análisis de agentes
+export const agentAnalyses = mysqlTable("agent_analyses", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  documentVersionId: int("documentVersionId"),
+  userId: int("userId").notNull(),
+  agentType: mysqlEnum("agentType", ["director", "voice_analyst", "critic"]).notNull(),
+  agentName: varchar("agentName", { length: 128 }),
+  prompt: text("prompt"),
+  response: text("response").notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Tabla de exportaciones
+export const documentExports = mysqlTable("document_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  documentVersionId: int("documentVersionId"),
+  userId: int("userId").notNull(),
+  format: mysqlEnum("format", ["pdf", "docx"]).notNull(),
+  fileKey: varchar("fileKey", { length: 512 }).notNull(),
+  fileUrl: text("fileUrl").notNull(),
+  fileSize: bigint("fileSize", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Función para obtener conexión de DB
+let _db = null;
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -24,172 +90,47 @@ export async function getDb() {
   return _db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
+// CORRECCIÓN DE SEGURIDAD: Todas las queries ahora filtran por userId + projectId
+export async function getDocumentVersion(versionId: number, userId: number, projectId: number) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
-
-  try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
-
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
+  if (!db) return null;
+  
+  const result = await db.query.documentVersions.findFirst({
+    where: and(      eq(documentVersions.id, versionId),
+      eq(documentVersions.userId, userId),
+      eq(documentVersions.projectId, projectId)
+    ),
+  });
+  
+  return result;
 }
 
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
-  return result.length > 0 ? result[0] : undefined;
-}
-
-// ===== PROJECTS =====
-export async function createProject(data: InsertProject): Promise<Project> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.insert(projects).values(data);
-  const result = await db.select().from(projects)
-    .where(and(eq(projects.userId, data.userId), eq(projects.title, data.title)))
-    .orderBy(desc(projects.createdAt)).limit(1);
-  return result[0];
-}
-
-export async function getProjectsByUser(userId: number): Promise<Project[]> {
+export async function getAgentAnalyses(projectId: number, userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(projects)
-    .where(eq(projects.userId, userId))
-    .orderBy(desc(projects.updatedAt));
+  
+  const result = await db.query.agentAnalyses.findMany({
+    where: and(
+      eq(agentAnalyses.projectId, projectId),
+      eq(agentAnalyses.userId, userId)
+    ),
+    orderBy: [desc(agentAnalyses.createdAt)],
+  });
+  
+  return result;
 }
 
-export async function getProjectById(id: number, userId: number): Promise<Project | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, userId))).limit(1);
-  return result[0];
-}
-
-export async function updateProjectStatus(id: number, userId: number, status: Project["status"]): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(projects).set({ status }).where(and(eq(projects.id, id), eq(projects.userId, userId)));
-}
-
-// ===== DOCUMENT VERSIONS =====
-export async function saveDocumentVersion(data: InsertDocumentVersion): Promise<DocumentVersion> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.insert(documentVersions).values(data);
-  const result = await db.select().from(documentVersions)
-    .where(eq(documentVersions.projectId, data.projectId))
-    .orderBy(desc(documentVersions.createdAt)).limit(1);
-  return result[0];
-}
-
-export async function getLatestVersion(projectId: number): Promise<DocumentVersion | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(documentVersions)
-    .where(eq(documentVersions.projectId, projectId))
-    .orderBy(desc(documentVersions.createdAt)).limit(1);
-  return result[0];
-}
-
-export async function listVersions(projectId: number, limit = 20): Promise<DocumentVersion[]> {
+export async function getDocumentExports(projectId: number, userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(documentVersions)
-    .where(eq(documentVersions.projectId, projectId))
-    .orderBy(desc(documentVersions.createdAt)).limit(limit);
-}
-
-// ===== AGENT ANALYSES =====
-export async function saveAnalysis(data: InsertAgentAnalysis): Promise<AgentAnalysis> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.insert(agentAnalyses).values(data);
-  const result = await db.select().from(agentAnalyses)
-    .where(eq(agentAnalyses.projectId, data.projectId))
-    .orderBy(desc(agentAnalyses.createdAt)).limit(1);
-  return result[0];
-}
-
-export async function listAnalyses(projectId: number, limit = 30): Promise<AgentAnalysis[]> {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(agentAnalyses)
-    .where(eq(agentAnalyses.projectId, projectId))
-    .orderBy(desc(agentAnalyses.createdAt)).limit(limit);
-}
-
-// ===== DOCUMENT EXPORTS =====
-export async function saveExport(data: InsertDocumentExport): Promise<DocumentExport> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.insert(documentExports).values(data);
-  const result = await db.select().from(documentExports)
-    .where(eq(documentExports.projectId, data.projectId))
-    .orderBy(desc(documentExports.createdAt)).limit(1);
-  return result[0];
-}
-
-export async function listExports(projectId: number): Promise<DocumentExport[]> {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(documentExports)
-    .where(eq(documentExports.projectId, projectId))
-    .orderBy(desc(documentExports.createdAt));
+  
+  const result = await db.query.documentExports.findMany({
+    where: and(
+      eq(documentExports.projectId, projectId),
+      eq(documentExports.userId, userId)
+    ),
+    orderBy: [desc(documentExports.createdAt)],
+  });
+  
+  return result;
 }
