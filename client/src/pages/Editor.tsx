@@ -1,38 +1,35 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useRoute } from "wouter";
 import { EditorToolbar } from "@/components/EditorToolbar";
-import { AgentPanel } from "@/components/AgentPanel";
+import { AgentPanel } from "@/components/components/AgentPanel";
 import { useEditor } from "@/hooks/useEditor";
 import { Button } from "@/components/ui/button";
-import { Save, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-export function Editor() {
-  const { projectId } = useParams<{ projectId: string }>();
-  const { content, isLoading, error, saveDocument } = useEditor(projectId);
+export default function Editor() {
+  const [, params] = useRoute("/editor/:projectId");
+  const projectId = params?.projectId;
+  
+  const { content, isLoading, error, saveDocument, isSaving: isMutationSaving } = useEditor(projectId);
   const [localContent, setLocalContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   
-  // CORRECCIÓN CRÍTICA: Referencia al timer para poder limpiarlo
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sincronizar contenido local con el del hook
   useEffect(() => {
-    if (content) {
+    if (content !== undefined) {
       setLocalContent(content);
     }
   }, [content]);
 
-  // CORRECCIÓN: Autosave con cleanup apropiado
   useEffect(() => {
     if (!localContent || !projectId) return;
 
-    // Limpiar timer anterior si existe
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
     }
 
-    // Configurar nuevo timer
     autosaveTimerRef.current = setTimeout(async () => {
       setIsSaving(true);
       try {
@@ -43,11 +40,11 @@ export function Editor() {
       } finally {
         setIsSaving(false);
       }
-    }, 30000); // Guardar cada 30 segundos
+    }, 30000);
 
-    // CORRECCIÓN: Cleanup function que elimina el timer
     return () => {
-      if (autosaveTimerRef.current) {        clearTimeout(autosaveTimerRef.current);
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = null;
       }
     };
@@ -55,6 +52,16 @@ export function Editor() {
 
   const handleChange = (value: string) => {
     setLocalContent(value);
+  };
+
+  const handleManualSave = async () => {
+    setIsSaving(true);
+    try {
+      await saveDocument(localContent);
+      setLastSaved(new Date());
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoading) {
@@ -68,7 +75,7 @@ export function Editor() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <p className="text-destructive mb-4">{error}</p>
+        <p className="text-destructive mb-4">{String(error)}</p>
         <Button onClick={() => window.location.reload()}>Reintentar</Button>
       </div>
     );
@@ -76,11 +83,10 @@ export function Editor() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Área principal de edición */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <EditorToolbar 
-          onSave={() => saveDocument(localContent)}
-          isSaving={isSaving}
+          onSave={handleManualSave}
+          isSaving={isSaving || isMutationSaving}
           lastSaved={lastSaved}
         />
         
@@ -88,15 +94,13 @@ export function Editor() {
           <textarea
             value={localContent}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full h-full resize-none outline-none text-lg leading-relaxed font-serif"
+            className="w-full h-full resize-none outline-none text-lg leading-relaxed font-serif bg-transparent"
             placeholder="Empieza a escribir tu historia..."
           />
         </div>
 
-        {/* Padding extra en móvil para que el contenido no quede oculto */}
         <div className="lg:hidden h-20" />
       </div>
-      {/* Panel de Agentes IA */}
       <AgentPanel 
         projectId={projectId!}
         documentId="current"

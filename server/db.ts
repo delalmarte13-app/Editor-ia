@@ -134,3 +134,25 @@ export async function getDocumentExports(projectId: number, userId: number) {
   
   return result;
 }
+
+export async function getUserByOpenId(openId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  return await db.query.users.findFirst({
+    where: eq(users.openId, openId),
+  });
+}
+
+export async function upsertUser(userData: any) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const existing = await getUserByOpenId(userData.openId);
+  if (existing) {
+    await db.update(users).set(userData).where(eq(users.openId, userData.openId));
+    return { ...existing, ...userData };
+  } else {
+    const [newUser] = await db.insert(users).values(userData).returning();
+    return newUser;
+  }
+}

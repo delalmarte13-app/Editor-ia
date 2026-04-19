@@ -1,43 +1,22 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, Plus, FileText, Loader2, Calendar } from "lucide-react";
 
-export function Projects() {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function Projects() {
+  const { data: projects = [], isLoading } = trpc.projects.list.useQuery();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Cargar proyectos al montar el componente
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const res = await fetch("/api/projects");
-        if (res.ok) {
-          const data = await res.json();
-          setProjects(data);
-        }
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProjects();
-  }, []);
-
-  // Lógica de filtrado (búsqueda + estado)
   const filteredProjects = projects.filter((project: any) => {
     const matchesSearch = project.title?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || project.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  // Colores según el estado del proyecto
   const getStatusColor = (status: string) => {
     switch (status) {
       case "draft": return "bg-yellow-100 text-yellow-800";
@@ -47,22 +26,21 @@ export function Projects() {
       default: return "bg-gray-100 text-gray-800";
     }
   };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Encabezado */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Mis Proyectos</h1>
           <p className="text-muted-foreground">Gestiona tus escritos y análisis.</p>
         </div>
-        <Link to="/projects/new">
+        <Link href="/dashboard">
           <Button>
             <Plus className="mr-2 h-4 w-4" /> Nuevo Proyecto
           </Button>
         </Link>
       </div>
 
-      {/* Barra de búsqueda y filtros */}
       <div className="flex flex-col md:flex-row gap-4 items-center bg-card p-4 rounded-lg border shadow-sm">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -88,20 +66,20 @@ export function Projects() {
         </div>
       </div>
 
-      {/* Contenido: Cargando / Vacío / Lista */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="text-center py-12 bg-card rounded-lg border border-dashed">
           <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium">No se encontraron proyectos</h3>          <p className="text-muted-foreground">Intenta ajustar los filtros o crea uno nuevo.</p>
+          <h3 className="text-lg font-medium">No se encontraron proyectos</h3>
+          <p className="text-muted-foreground">Intenta ajustar los filtros o crea uno nuevo.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project: any) => (
-            <Link key={project.id} to={`/editor/${project.id}`}>
+            <Link key={project.id} href={`/editor/${project.id}`}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
