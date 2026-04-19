@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { invokeLLM } from "./llm";
+import { invokeLLMMock } from "./llm-mock";
 import { AGENT_PROMPTS } from "../agents/prompts";
 import { getDb, documentVersions } from "../db";
 import { eq, and, desc } from "drizzle-orm";
@@ -67,7 +68,11 @@ async function startServer() {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const result = await invokeLLM({
+      // Use mock LLM in development if API key is not configured
+      const useMock = !process.env.BUILT_IN_FORGE_API_KEY || process.env.BUILT_IN_FORGE_API_KEY.length === 0;
+      const llmFunction = useMock ? invokeLLMMock : invokeLLM;
+
+      const result = await llmFunction({
         messages: [{ role: "user", content: prompt }],
       });
 

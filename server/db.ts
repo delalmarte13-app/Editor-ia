@@ -5,7 +5,10 @@ import {
   varchar, 
   text, 
   timestamp, 
-  mysqlEnum 
+  mysqlEnum,
+  boolean,
+  json,
+  bigint
 } from "drizzle-orm/mysql-core";
 import { eq, and, desc } from "drizzle-orm";
 
