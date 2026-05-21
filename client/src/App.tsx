@@ -1,45 +1,55 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import React from "react";
+
+import { BrowserRouter as Router, Routes, Route, NavLink } from "react-router-dom";
+
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
-import Projects from "./pages/Projects";
+import Agents from "./pages/Agents";
+import Export from "./pages/Export";
 
-function Router() {
-  // make sure to consider if you need authentication for certain routes
+const App: React.FC = () => {
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/dashboard"} component={Dashboard} />
-      <Route path={"/projects"} component={Projects} />
-      <Route path={"/editor/:projectId"} component={Editor} />
-      <Route path={"/editor"} component={Editor} />
-      <Route path={"/404"} component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
+    <Router>
+      <div className="flex h-screen bg-slate-950 text-slate-50 overflow-hidden">
+        {/* Sidebar */}
+        <aside className="w-64 border-r border-slate-800 flex flex-col">
+          <div className="p-6 border-b border-slate-800">
+            <h1 className="text-xl font-bold tracking-tight text-indigo-400">EditorialAI</h1>
+          </div>
+          <nav className="flex-1 p-4 space-y-2">
+            <NavLink to="/" className={({ isActive }) => `block p-3 rounded-lg transition ${isActive ? 'bg-slate-800 text-indigo-400' : 'hover:bg-slate-900'}`}>
+              Dashboard
+            </NavLink>
+            <NavLink to="/editor" className={({ isActive }) => `block p-3 rounded-lg transition ${isActive ? 'bg-slate-800 text-indigo-400' : 'hover:bg-slate-900'}`}>
+              Editor
+            </NavLink>
+            <NavLink to="/agents" className={({ isActive }) => `block p-3 rounded-lg transition ${isActive ? 'bg-slate-800 text-indigo-400' : 'hover:bg-slate-900'}`}>
+              Agentes
+            </NavLink>
+            <NavLink to="/export" className={({ isActive }) => `block p-3 rounded-lg transition ${isActive ? 'bg-slate-800 text-indigo-400' : 'hover:bg-slate-900'}`}>
+              Exportar
+            </NavLink>
+          </nav>
+          <div className="p-4 border-t border-slate-800">
+            <div className="flex items-center space-x-3 p-2">
+              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold">U</div>
+              <span className="text-sm font-medium">Usuario</span>
+            </div>
+          </div>
+        </aside>
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster richColors theme="dark" />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto bg-slate-950">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/editor" element={<Editor />} />
+            <Route path="/agents" element={<Agents />} />
+            <Route path="/export" element={<Export />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
-}
+};
 
 export default App;
