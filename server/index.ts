@@ -296,17 +296,58 @@ async function getOrCreateStyleProfile(userId: number, sampleText?: string) {
 
 // ========== LLM ==========
 async function invokeLLM(params: any) {
-  if (!ENV.forgeApiKey) return invokeLLMMock(params);
-  const response = await fetch(`${ENV.forgeApiUrl}/v1/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(params),
-  });
-  if (!response.ok) throw new Error(`LLM error: ${response.status}`);
-  return response.json();
+  const groqKey = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  
+  if (groqKey) {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: "mixtral-8x7b-32768",
+          messages: params.messages,
+          max_tokens: 1024,
+          temperature: 0.7,
+        }),
+      });
+      if (response.ok) return response.json();
+    } catch (e) {
+      log.warn({err: e}, "Groq error, falling back");
+    }
+  }
+  
+  if (geminiKey) {
+    try {
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: params.messages[0]?.content || "" }] }],
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          id: `gemini-${Date.now()}`,
+          choices: [{
+            message: {
+              role: "assistant",
+              content: data.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta",
+            },
+          }],
+        };
+      }
+    } catch (e) {
+      log.warn({err: e}, "Gemini error, falling back");
+    }
+  }
+  
+  return invokeLLMMock(params);
 }
 
 async function invokeLLMMock(params: any) {
