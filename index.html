@@ -1,0 +1,185 @@
+<script type="module">
+    let genAI = null;
+    let isDemo = false;
+
+    window.startWorkflow = async function() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const title = document.getElementById('title').value.trim();
+        const genre = document.getElementById('genre').value;
+        const text = document.getElementById('inputText').value.trim();
+        const errorDiv = document.getElementById('errorMsg');
+        const btn = document.getElementById('processBtn');
+
+        errorDiv.classList.add('hidden');
+        document.getElementById('resultsArea').classList.add('hidden');
+
+        if (!title || !text) {
+            showError("Por favor, introduce al menos el título y el texto a procesar.");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "⏳ Procesando...";
+
+        try {
+            if (apiKey) {
+                // ✅ Acepta CUALQUIER formato de clave (AIza, o los nuevos)
+                genAI = new window.GoogleGenerativeAI(apiKey);
+                isDemo = false;
+                
+                // Test rápido para verificar que la clave funciona
+                try {
+                    const testModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                    await testModel.generateContent("Hola");
+                } catch (authError) {
+                    if (authError.message.includes('API_KEY_INVALID') || 
+                        authError.message.includes('401') || 
+                        authError.message.includes('403')) {
+                        throw new Error("🔑 La API Key no es válida. Verifica que la copiaste completa desde https://aistudio.google.com/app/apikey");
+                    }
+                    throw authError;
+                }
+            } else {
+                isDemo = true;
+                console.log("🎭 Modo Demo activado (sin API Key)");
+            }
+
+            await runStep('step-director', '🎯 Analizando proyecto y voz autoral...', () => 
+                callAI(`Eres el Director Editorial. Analiza este texto de género ${genre}. Título: ${title}. Resume en 2 frases tu plan de acción y confirma que has captado la voz del autor. Texto: ${text.substring(0, 500)}...`)
+            );
+
+            await runStep('step-corrector', '✍️ Corrigiendo ortografía y gramática (RAE)...', () => 
+                callAI(`Eres un corrector profesional. Corrige SOLO ortografía, puntuación y gramática de este texto. NO cambies el estilo. Devuelve SOLO el texto corregido. Texto: ${text}`)
+            );
+
+            await runStep('step-translator', '🌐 Traduciendo al Inglés y Catalán (estilo literario)...', async () => {
+                const textToTranslate = isDemo ? text : (getStepResult('step-corrector') || text);
+                const prompt = `Eres un traductor literario experto. Traduce el siguiente texto AL INGLÉS Y AL CATALÁN. No hagas traducción literal; adapta modismos para que suene nativo, manteniendo la voz y el tono del autor original. Formato de respuesta EXACTO:
+
+=== INGLÉS ===
+[traducción aquí]
+
+=== CATALÁN ===
+[traducción aquí]
+
+Texto original: ${textToTranslate.substring(0, 1000)}`;
+                return await callAI(prompt);
+            });
+
+            await runStep('step-stylist', '🎨 Humanizando y eliminando rastros de IA...', () => 
+                callAI(`Eres un editor de estilo experto en 'humanización'. Reescribe este texto para que sea 100% indetectable como IA. Añade variación en la longitud de las frases, vocabulario rico y natural, y elimina estructuras repetitivas. Mantén la voz del autor. Texto: ${text}`)
+            );
+
+            await runStep('step-illustrator', '🖼️ Diseñando prompts para ilustraciones...', () => 
+                callAI(`Eres Director de Arte. Extrae 2 escenas clave de este texto y crea un prompt detallado para IA generadora de imágenes (Midjourney/DALL-E) para cada una. Incluye: sujeto, acción, entorno, estilo artístico, iluminación y paleta de colores. Texto: ${text}`)
+            );
+
+            await runStep('step-kdp', '📊 Analizando potencial en Amazon KDP...', () => 
+                callAI(`Eres analista de Amazon KDP. Para un libro de ${genre} con este tema, dame: 3 keywords de cola larga, 2 categorías de Amazon recomendadas, y una estrategia de precio. Texto de referencia: ${text.substring(0, 500)}`)
+            );
+
+            showResults();
+
+        } catch (error) {
+            console.error("Error completo:", error);
+            let msg = error.message;
+            if (msg.includes('API_KEY')) {
+                msg = "🔑 Problema con la API Key. Ve a https://aistudio.google.com/app/apikey y genera una nueva. Asegúrate de copiarla COMPLETA.";
+            } else if (msg.includes('SAFETY') || msg.includes('safety')) {
+                msg = "⚠️ El contenido fue bloqueado por los filtros de seguridad de Google. Prueba con otro texto.";
+            } else if (msg.includes('quota') || msg.includes('429')) {
+                msg = "⏰ Has alcanzado el límite temporal de peticiones. Espera 1 minuto y vuelve a intentarlo.";
+            }
+            showError("Error: " + msg);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "🚀 Iniciar Proceso Editorial";
+        }
+    };
+
+    async function callAI(prompt) {
+        if (isDemo) {
+            await new Promise(r => setTimeout(r, 1500));
+            return `[MODO DEMO] Resultado simulado para: ${prompt.substring(0, 50)}...\n(Obtén una API Key gratuita de Google para ver resultados reales de la IA).`;
+        }
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    }
+
+    async function runStep(stepId, statusText, aiFunction) {
+        const stepEl = document.getElementById(stepId);
+        stepEl.classList.add('active');
+        stepEl.querySelector('.step-status').textContent = statusText;
+        
+        try {
+            const result = await aiFunction();
+            stepEl.dataset.result = result;
+            stepEl.classList.remove('active');
+            stepEl.classList.add('done');
+            stepEl.querySelector('.step-status').textContent = "✅ Completado";
+        } catch (e) {
+            stepEl.classList.remove('active');
+            stepEl.style.borderLeftColor = "#dc2626";
+            stepEl.querySelector('.step-status').textContent = "❌ Error";
+            throw e;
+        }
+    }
+
+    function getStepResult(stepId) {
+        return document.getElementById(stepId).dataset.result;
+    }
+
+    function showResults() {
+        const area = document.getElementById('resultsArea');
+        const content = document.getElementById('resultsContent');
+        area.classList.remove('hidden');
+
+        const correctorRes = getStepResult('step-corrector');
+        const translatorRes = getStepResult('step-translator');
+        const stylistRes = getStepResult('step-stylist');
+        const illustratorRes = getStepResult('step-illustrator');
+        const kdpRes = getStepResult('step-kdp');
+
+        let html = '';
+        if (correctorRes) html += createResultBox('✍️ Texto Corregido', correctorRes);
+        if (translatorRes) html += createResultBox('🌐 Traducción Literaria (EN / CAT)', translatorRes);
+        if (stylistRes) html += createResultBox('🎨 Texto Humanizado (Voz Autoral)', stylistRes);
+        if (illustratorRes) html += createResultBox('🖼️ Prompts para Ilustraciones', illustratorRes, true);
+        if (kdpRes) html += createResultBox('📊 Análisis Amazon KDP', kdpRes);
+
+        content.innerHTML = html;
+        area.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function createResultBox(title, text, isPrompt = false) {
+        return `
+            <div class="result-box">
+                <h4>${title}</h4>
+                <div class="${isPrompt ? 'prompt-box' : 'result-text'}">${text}</div>
+            </div>
+        `;
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+
+    window.downloadResults = function() {
+        let text = `PROYECTO: ${document.getElementById('title').value}\nGÉNERO: ${document.getElementById('genre').value}\n\n`;
+        text += `--- TEXTO CORREGIDO ---\n${getStepResult('step-corrector') || 'N/A'}\n\n`;
+        text += `--- TRADUCCIONES ---\n${getStepResult('step-translator') || 'N/A'}\n\n`;
+        text += `--- TEXTO HUMANIZADO ---\n${getStepResult('step-stylist') || 'N/A'}\n\n`;
+        text += `--- PROMPTS ILUSTRACIÓN ---\n${getStepResult('step-illustrator') || 'N/A'}\n\n`;
+        text += `--- ANÁLISIS KDP ---\n${getStepResult('step-kdp') || 'N/A'}`;
+
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${document.getElementById('title').value || 'proyecto'}_editorial.txt`;
+        a.click();
+    };
+                      </script>
