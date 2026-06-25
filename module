@@ -1,0 +1,147 @@
+<script type="module">
+    let genAI = null;
+    let isDemo = false;
+
+    window.startWorkflow = async function() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const title = document.getElementById('title').value.trim();
+        const genre = document.getElementById('genre').value;
+        const text = document.getElementById('inputText').value.trim();
+        const errorDiv = document.getElementById('errorMsg');
+        const btn = document.getElementById('processBtn');
+
+        errorDiv.classList.add('hidden');
+        document.getElementById('resultsArea').classList.add('hidden');
+
+        if (!title || !text) {
+            showError("Por favor, introduce al menos el título y el texto a procesar.");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "⏳ Procesando...";
+
+        try {
+            if (apiKey) {
+                genAI = new window.GoogleGenerativeAI(apiKey);
+                isDemo = false;
+                
+                // Test de conexión
+                try {
+                    const testModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+                    await testModel.generateContent("test");
+                } catch (authError) {
+                    throw new Error("🔑 API Key inválida. Verifica en https://aistudio.google.com/app/apikey");
+                }
+            } else {
+                isDemo = true;
+            }
+
+            await runStep('step-director', '🎯 Analizando proyecto...', () => 
+                callAI(`Director Editorial: Analiza texto género ${genre}, título: ${title}. Plan de 2 frases. Texto: ${text.substring(0, 500)}`)
+            );
+
+            await runStep('step-corrector', '✍️ Corrigiendo...', () => 
+                callAI(`Corrector: Corrige SOLO ortografía y gramática. NO cambies estilo. Texto: ${text}`)
+            );
+
+            await runStep('step-translator', '🌐 Traduciendo EN/CAT...', async () => {
+                const textToTranslate = isDemo ? text : (getStepResult('step-corrector') || text);
+                return await callAI(`Traductor: Traduce al INGLÉS y CATALÁN (formato: === INGLÉS === / === CATALÁN ===). Texto: ${textToTranslate.substring(0, 1000)}`);
+            });
+
+            await runStep('step-stylist', '🎨 Humanizando...', () => 
+                callAI(`Editor: Reescribe para eliminar rastros de IA. Texto: ${text}`)
+            );
+
+            await runStep('step-illustrator', '🖼️ Prompts...', () => 
+                callAI(`Director Arte: 2 prompts para ilustraciones. Texto: ${text}`)
+            );
+
+            await runStep('step-kdp', '📊 KDP...', () => 
+                callAI(`KDP: Keywords, categorías y precio para ${genre}. Texto: ${text.substring(0, 500)}`)
+            );
+
+            showResults();
+
+        } catch (error) {
+            showError("Error: " + error.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "🚀 Iniciar Proceso Editorial";
+        }
+    };
+
+    async function callAI(prompt) {
+        if (isDemo) {
+            await new Promise(r => setTimeout(r, 1000));
+            return `[DEMO] Respuesta simulada`;
+        }
+        // ✅ CAMBIADO A gemini-pro (modelo estable)
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    }
+
+    async function runStep(stepId, statusText, aiFunction) {
+        const stepEl = document.getElementById(stepId);
+        stepEl.classList.add('active');
+        stepEl.querySelector('.step-status').textContent = statusText;
+        
+        try {
+            const result = await aiFunction();
+            stepEl.dataset.result = result;
+            stepEl.classList.remove('active');
+            stepEl.classList.add('done');
+            stepEl.querySelector('.step-status').textContent = "✅";
+        } catch (e) {
+            stepEl.classList.remove('active');
+            stepEl.style.borderLeftColor = "#dc2626";
+            stepEl.querySelector('.step-status').textContent = "❌";
+            throw e;
+        }
+    }
+
+    function getStepResult(stepId) {
+        return document.getElementById(stepId).dataset.result;
+    }
+
+    function showResults() {
+        const area = document.getElementById('resultsArea');
+        const content = document.getElementById('resultsContent');
+        area.classList.remove('hidden');
+
+        let html = '';
+        const steps = ['step-corrector', 'step-translator', 'step-stylist', 'step-illustrator', 'step-kdp'];
+        const titles = ['✍️ Corregido', '🌐 Traducciones', '🎨 Humanizado', '🖼️ Prompts', '📊 KDP'];
+        
+        steps.forEach((step, i) => {
+            const res = getStepResult(step);
+            if (res) {
+                html += `<div class="result-box"><h4>${titles[i]}</h4><div class="result-text">${res}</div></div>`;
+            }
+        });
+
+        content.innerHTML = html;
+        area.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    window.downloadResults = function() {
+        let text = `PROYECTO: ${document.getElementById('title').value}\n\n`;
+        ['step-corrector', 'step-translator', 'step-stylist', 'step-illustrator', 'step-kdp'].forEach(step => {
+            text += `\n--- ${step.toUpperCase()} ---\n${getStepResult(step) || 'N/A'}\n`;
+        });
+        
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${document.getElementById('title').value}_editorial.txt`;
+        a.click();
+    };
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+</script>
