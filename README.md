@@ -1,80 +1,40 @@
-# EditorialAI — AI-Powered Book Writing Assistant
+# EditorialAI — Estudio editorial asistido por IA
 
-EditorialAI is a production-ready web application designed to help authors write, revise, export, and publish books using specialized AI agents.
+Aplicación React + Express + tRPC + PostgreSQL para convertir un manuscrito en un paquete editorial y comercializable.
 
-## Architecture
+## Qué ya existe
+- Proyectos y versiones de documentos.
+- Editor con autosave.
+- Agentes editoriales: dirección, crítica, corrección, reescritura, estilo, arte, mercado y KDP.
+- Exportación PDF/EPUB y arquitectura para otros formatos.
+- Integraciones de IA y audio en el backend.
 
-```text
-+----------------+      +-------------------+      +-------------------+
-|   Frontend     |      |      Backend      |      |    Database       |
-| (React + Vite) | <--> | (Express + tRPC)  | <--> | (PostgreSQL/Neon) |
-+----------------+      +---------+---------+      +-------------------+
-                                  |
-                                  v
-                        +-------------------+
-                        |     AI APIs       |
-                        | (Groq, ElevenLabs)|
-                        +-------------------+
+## Flujo de producción
+El flujo oficial está en `WORKFLOW.md` y prioriza ahorro de tokens:
+
+1. Entrada por texto, archivo o voz.
+2. Normalización y segmentación local.
+3. Director Editorial crea un brief y plan compacto.
+4. Solo se activan especialistas necesarios.
+5. QA objetivo, reparación automática y máximo dos reintentos.
+6. Entrega de manuscrito, informe, estrategia de mercado/KDP y materiales de producción/exportación.
+
+La regla UX es **no bloquear al autor con preguntas**: el Director usa supuestos razonables y permite al usuario corregir decisiones mediante el chat.
+
+## Desarrollo
+```bash
+npm install
+cp .env.example .env
+npm run db:push
+npm run dev
 ```
 
-## Quick Start (Local Development)
+## Variables de entorno
+Revisar `.env.example`. Para producción se necesita una base PostgreSQL y, según las funciones activadas, claves de proveedor de IA/audio.
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/delalmarte13-app/Editor-ia
-   cd editorial-ai
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables**:
-   Create a `.env` file based on `.env.example`.
-
-4. **Setup Database**:
-   - Go to [neon.tech](https://neon.tech) and create a PostgreSQL database.
-   - Copy the connection string to `DATABASE_URL` in `.env`.
-   - Run migrations: `npm run db:push`.
-
-5. **Start development server**:
-   ```bash
-   npm run dev
-   ```
-
-## Environment Variables
-
-| Name | Required | Description | Source |
-|------|----------|-------------|--------|
-| `JWT_SECRET` | Yes | Secret for session tokens | Generate a random 32+ char string |
-| `DATABASE_URL` | Yes | PostgreSQL connection string | Neon.tech / PlanetScale |
-| `VITE_APP_ID` | Yes | Application identifier | `editorial-ai` |
-| `BUILT_IN_FORGE_API_URL` | Yes | LLM API Base URL | `https://api.groq.com/openai` |
-| `BUILT_IN_FORGE_API_KEY` | Yes | LLM API Key | Groq Console |
-| `ELEVENLABS_API_KEY` | No | TTS API Key | ElevenLabs |
-
-## Deployment
-
-### Backend (Railway)
-1. Create a new project on [Railway](https://railway.app).
-2. Connect your GitHub repository.
-3. Set the start command to `npm run build && npm start`.
-4. Add all environment variables.
-
-### Frontend (Vercel)
-1. Import the repository on [Vercel](https://vercel.com).
-2. Set the root directory to `client`.
-3. Set the build command to `vite build`.
-4. Set the output directory to `../dist/public`.
-5. Add `VITE_API_URL` pointing to your Railway backend.
-
-## Free Tier Limits
-
-| Service | Free Tier Limit |
-|---------|----------------|
-| Neon / PlanetScale | 5GB storage |
-| Railway | $5 credit/month |
-| Vercel | 100GB bandwidth/month |
-| Groq | 14,400 req/day (llama-3.3-70b) |
-| ElevenLabs | 10,000 characters/month |
+## Prioridad de implementación
+1. Consolidar chat con el Director y persistencia de conversaciones.
+2. Ingesta robusta de DOCX/PDF/TXT y transcripción de audio.
+3. Orquestador con caché, contexto por fragmentos y QA/reintentos.
+4. Exportación completa y descargas verificables.
+5. CI con build y pruebas.
