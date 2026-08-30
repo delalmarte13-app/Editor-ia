@@ -7,9 +7,8 @@
     "strict": false,
     "skipLibCheck": true,
     "outDir": "dist",
-    "rootDir": ".",
-    "jsx": "react-jsx"
+    "rootDir": "."
   },
-  "include": ["server/**/*", "drizzle/**/*"],
-  "exclude": ["client/src/**/*", "server/**/*.test.ts"]
+  "include": ["server/core/**/*.ts"],
+  "exclude": ["server/**/*.test.ts"]
 }
