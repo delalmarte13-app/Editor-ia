@@ -1,0 +1,9 @@
+id: correction-basic-001
+agent: corrector
+input: "el niño corrio asia su casa"
+expected_contains: ["corrió", "hacia"]
+forbidden_behaviors:
+  - invent_new_character
+  - invent_new_event
+  - rewrite_creatively
+acceptance: semantic_correction_only
