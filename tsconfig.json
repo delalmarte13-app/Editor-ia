@@ -8,7 +8,9 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": false
   },
-  "include": ["server/**/*", "client/src/**/*", "drizzle/**/*"]
+  "include": ["server/**/*", "drizzle/**/*"],
+  "exclude": ["client/src/**/*", "**/*.test.ts"]
 }
