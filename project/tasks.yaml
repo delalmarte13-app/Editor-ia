@@ -1,0 +1,50 @@
+tasks:
+  - id: P0-DOM-001
+    title: Define canonical domain models
+    priority: P0
+    status: pending
+    dependencies: []
+    acceptance: [project model, manuscript model, run model, task model, result model, quality report]
+    tests: [domain-schema]
+  - id: P0-NORM-001
+    title: Normalize manuscript input
+    priority: P0
+    status: pending
+    dependencies: [P0-DOM-001]
+    acceptance: [trim whitespace, normalize newlines, preserve unicode, detect empty]
+    tests: [empty, unicode, long-text]
+  - id: P0-SEG-001
+    title: Segment canonical manuscript
+    priority: P0
+    status: pending
+    dependencies: [P0-NORM-001]
+    acceptance: [stable chunk ids, chapter detection, incremental invalidation]
+    tests: [short, long, malformed]
+  - id: P0-MEM-001
+    title: Build compact editorial memory
+    priority: P0
+    status: pending
+    dependencies: [P0-SEG-001]
+    acceptance: [structured memory, relevant context selection]
+    tests: [memory-compaction]
+  - id: P0-DIR-001
+    title: Build Director planner
+    priority: P0
+    status: pending
+    dependencies: [P0-MEM-001]
+    acceptance: [diagnosis, agent selection, task DAG, token budget]
+    tests: [short-text, conflict, long-context]
+  - id: P0-RUN-001
+    title: Build task runner
+    priority: P0
+    status: pending
+    dependencies: [P0-DIR-001]
+    acceptance: [dependencies, cache, retry, statuses]
+    tests: [cache-hit, retry, dependency-failure]
+  - id: P0-QA-001
+    title: Add quality gate
+    priority: P0
+    status: pending
+    dependencies: [P0-RUN-001]
+    acceptance: [structural validation, independent QA, repair limit]
+    tests: [qa-fail, qa-pass]
