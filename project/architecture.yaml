@@ -1,0 +1,18 @@
+system: EditorialAI
+principles:
+  - minimum_questions
+  - minimum_context
+  - structured_outputs
+  - independent_quality_gate
+  - cache_before_generation
+layers:
+  ingestion: [text, files, audio]
+  processing: [normalize, segment, hash]
+  memory: [editorial_memory, summaries]
+  direction: [diagnose, plan, delegate]
+  execution: [tasks, dependencies, runner]
+  quality: [validation, qa, repair]
+  delivery: [exports, package]
+contracts:
+  agent_result: [agent, status, score, summary, findings, changes, risks, recommended_next_step]
+flow: [ingest, normalize, segment, remember, plan, execute, qa, repair, deliver]
