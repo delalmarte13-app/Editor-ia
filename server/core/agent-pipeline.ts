@@ -9,8 +9,9 @@ export interface AgentPipelineResult {
   repaired: number;
 }
 
-/** Executes registered agents and applies the bounded independent quality loop. */
+/** Executes agents, then applies bounded QA only when a result actually fails. */
 export async function executeEditorialPlan(registry: AgentRegistry, tasks: EditorialTask[]): Promise<AgentPipelineResult> {
+  const byId = new Map(tasks.map((task) => [task.id, task]));
   let repaired = 0;
   const runner = new TaskRunner(async (task) => {
     const agent = registry.get(task.agent);
@@ -20,15 +21,23 @@ export async function executeEditorialPlan(registry: AgentRegistry, tasks: Edito
 
   const rawResults = await runner.runPlan(tasks);
   const reviewed = await Promise.all(rawResults.map(async (result) => {
-    const agent = registry.get(tasks.find((task) => task.id === result.taskId)?.agent ?? '');
-    if (!agent || result.status === 'completed') {
-      const review = await reviewAndRepair(result, async (current) => current, 0);
-      return review;
-    }
-    const review = await reviewAndRepair(result, async (current) => agent.execute({ ...tasks.find((task) => task.id === result.taskId)!, attempt: current.taskId === result.taskId ? 1 : 0 }), 2);
+    const task = byId.get(result.taskId);
+    const agent = task ? registry.get(task.agent) : undefined;
+    const review = await reviewAndRepair(
+      result,
+      async () => {
+        if (!agent || !task) return result;
+        return agent.execute({ ...task, attempt: Math.min(task.attempt + 1, task.maxAttempts) });
+      },
+      Math.max(0, task ? task.maxAttempts - task.attempt : 0),
+    );
     repaired += review.repairs;
     return review;
   }));
 
-  return { results: reviewed.map((item) => item.result), approved: reviewed.every((item) => item.report.approved), repaired };
+  return {
+    results: reviewed.map((item) => item.result),
+    approved: reviewed.every((item) => item.report.approved),
+    repaired,
+  };
 }
