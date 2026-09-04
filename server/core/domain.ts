@@ -1,3 +1,5 @@
+import type { EditorialDepartmentId } from './departments.js';
+
 export type TaskStatus = 'pending' | 'ready' | 'running' | 'waiting' | 'qa' | 'repair' | 'completed' | 'failed' | 'cancelled';
 
 export interface Project {
@@ -41,6 +43,7 @@ export interface EditorialTask {
   id: string;
   projectId: string;
   agent: string;
+  department?: EditorialDepartmentId;
   objective: string;
   inputContext?: string;
   dependencies: string[];
