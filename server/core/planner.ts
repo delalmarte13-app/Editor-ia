@@ -1,4 +1,5 @@
-import type { EditorialMemory, EditorialTask } from './domain';
+import type { EditorialMemory, EditorialTask } from './domain.js';
+import { departmentForAgent } from './department-router.js';
 
 export interface PlanningInput {
   projectId: string;
@@ -25,6 +26,7 @@ export function createEditorialPlan(input: PlanningInput): EditorialPlan {
     id: `task-${index + 1}-${agent}`,
     projectId: input.projectId,
     agent,
+    department: departmentForAgent(agent),
     objective: input.objective,
     inputContext: input.memory?.summary || undefined,
     dependencies: agent === 'qa' ? selected.filter((a) => a !== 'qa').map((a) => `task-${selected.indexOf(a) + 1}-${a}`) : [],
