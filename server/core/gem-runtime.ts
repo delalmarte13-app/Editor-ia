@@ -62,7 +62,7 @@ export async function executeGem(input: GemExecutionInput): Promise<GemExecution
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
 
   const prompt = await loadGemPrompt(input.department);
-  const model = input.model || process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+  const model = input.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   const client = new GoogleGenAI({ apiKey });
 
   const interaction = await client.interactions.create({
